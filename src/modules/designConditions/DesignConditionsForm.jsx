@@ -1,0 +1,513 @@
+// src/modules/designConditions/DesignConditionsForm.jsx
+import React, { useState } from "react";
+import {
+  computeDirectionStats,
+  estimateTrafficVolume,
+  SPEED_CAPACITY_TABLE
+} from "./calculations";
+
+// import {
+//   getDesignConditionsStrings,
+//   SUPPORTED_LANGS,
+//   LANGUAGE_LABELS
+// } from "../../i18n/designConditionsStrings";
+
+import {
+  getModuleStrings,
+  SUPPORTED_LANGS,
+  LANGUAGE_LABELS
+} from "../../i18n/appStrings";
+import { useLanguage } from "../../i18n/LanguageContext";
+
+const EMPTY_SEGMENT = {
+  slopePercent: "",
+  lengthM: "",
+  avgElevationM: "",
+  laneCount: ""
+};
+
+const SEGMENT_COUNT_PER_DIR = 10;
+
+// Excel-style mapping: IF(V=120,0.1, IF(V=100,0.2, IF(V=80,0.3)))
+function defaultApplyCodeForSpeed(speed) {
+  if (speed === 120) return 0.1;
+  if (speed === 100) return 0.2;
+  if (speed === 80) return 0.3;
+  return 0.3;
+}
+
+// export default function DesignConditionsForm() {
+//   // UI language
+//   const [lang, setLang] = useState("en");
+//   const t = getDesignConditionsStrings(lang);
+export default function DesignConditionsForm() {
+  const { lang, setLang } = useLanguage();
+  const t = getModuleStrings("designConditions", lang);
+
+
+  // 10 segments per direction
+  const [segmentsMasanToJinju, setSegmentsMasanToJinju] = useState(
+    Array.from({ length: SEGMENT_COUNT_PER_DIR }, () => ({ ...EMPTY_SEGMENT }))
+  );
+  const [segmentsJinjuToMasan, setSegmentsJinjuToMasan] = useState(
+    Array.from({ length: SEGMENT_COUNT_PER_DIR }, () => ({ ...EMPTY_SEGMENT }))
+  );
+
+  // Global design inputs
+  const [designInputs, setDesignInputs] = useState({
+    designSpeedKmH: 80,
+    applyCode: defaultApplyCodeForSpeed(80),
+    capacityUsageRatio: defaultApplyCodeForSpeed(80),
+    serviceLevelCode: "D",
+    peakTrafficJinju: 2200,
+    peakTrafficMasan: 2200
+  });
+
+  const handleSegmentChange = (dir, index, field, value) => {
+    const [segments, setter] =
+      dir === "MasanToJinju"
+        ? [segmentsMasanToJinju, setSegmentsMasanToJinju]
+        : [segmentsJinjuToMasan, setSegmentsJinjuToMasan];
+
+    const next = segments.map((seg, i) =>
+      i === index ? { ...seg, [field]: value } : seg
+    );
+    setter(next);
+  };
+
+  const handleDesignSpeedChange = (speed) => {
+    const s = Number(speed);
+    const code = defaultApplyCodeForSpeed(s);
+    setDesignInputs((prev) => ({
+      ...prev,
+      designSpeedKmH: s,
+      applyCode: code,
+      capacityUsageRatio: code
+    }));
+  };
+
+  const handleDesignInputChange = (field, value) => {
+    setDesignInputs((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // ---- Calculations per direction ----
+  const statsMasanToJinju = computeDirectionStats(segmentsMasanToJinju);
+  const statsJinjuToMasan = computeDirectionStats(segmentsJinjuToMasan);
+
+  const trafficMasanToJinju = estimateTrafficVolume({
+    designSpeedKmH: designInputs.designSpeedKmH,
+    capacityUsageRatio: designInputs.capacityUsageRatio,
+    lanes: statsMasanToJinju.lanes
+  });
+
+  const trafficJinjuToMasan = estimateTrafficVolume({
+    designSpeedKmH: designInputs.designSpeedKmH,
+    capacityUsageRatio: designInputs.capacityUsageRatio,
+    lanes: statsJinjuToMasan.lanes
+  });
+
+  const baseCap = SPEED_CAPACITY_TABLE[designInputs.designSpeedKmH];
+
+  return (
+    <div style={{ padding: 20, fontFamily: "sans-serif" }}>
+      {/* Header: title left, language selector right */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 16
+        }}
+      >
+        <h1 style={{ margin: 0, fontSize: 20 }}>{t.moduleTitle}</h1>
+
+        <div style={{ minWidth: 200, textAlign: "right" }}>
+          <label
+            style={{
+              ...fieldLabel,
+              display: "block",
+              marginBottom: 4,
+              textAlign: "right"
+            }}
+          >
+            {t.languageLabel}
+          </label>
+          <select
+            value={lang}
+            onChange={(e) => setLang(e.target.value)}
+            style={controlStyle}
+          >
+            {SUPPORTED_LANGS.map((code) => (
+              <option key={code} value={code}>
+                {LANGUAGE_LABELS[code] || code}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* === GLOBAL DESIGN INPUTS === */}
+      <section style={cardStyle}>
+        <h2>{t.globalTitle}</h2>
+
+        {/* 4-column grid for standard fields */}
+        <div style={gridGlobal}>
+          <div style={fieldWrapper}>
+            <label style={fieldLabel}>{t.designSpeed}</label>
+            <select
+              value={designInputs.designSpeedKmH}
+              onChange={(e) => handleDesignSpeedChange(Number(e.target.value))}
+              style={controlStyle}
+            >
+              {Object.keys(SPEED_CAPACITY_TABLE).map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={fieldWrapper}>
+            <label style={fieldLabel}>{t.applyCode}</label>
+            <input
+              type="number"
+              value={designInputs.applyCode}
+              readOnly
+              disabled
+              style={readOnlyControlStyle}
+            />
+          </div>
+
+          <div style={fieldWrapper}>
+            <label style={fieldLabel}>{t.capacityRatio}</label>
+            <input
+              type="number"
+              value={designInputs.capacityUsageRatio}
+              onChange={(e) =>
+                handleDesignInputChange(
+                  "capacityUsageRatio",
+                  Number(e.target.value)
+                )
+              }
+              style={controlStyle}
+            />
+          </div>
+
+          <div style={fieldWrapper}>
+            <label style={fieldLabel}>{t.serviceLevel}</label>
+            <select
+              value={designInputs.serviceLevelCode}
+              onChange={(e) =>
+                handleDesignInputChange("serviceLevelCode", e.target.value)
+              }
+              style={controlStyle}
+            >
+              {["A", "B", "C", "D", "E", "F"].map((code) => (
+                <option key={code} value={code}>
+                  {code}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Peak traffic block – full width, neatly labelled Jinju/Masan */}
+        <div style={peakBlock}>
+          <div style={{ marginBottom: 4, fontSize: 12, fontWeight: 500 }}>
+            {t.peakTrafficHeader}
+          </div>
+          <div style={peakRow}>
+            <span style={peakLabel}>{t.peakTrafficJinjuLabel}</span>
+            <input
+              type="number"
+              value={designInputs.peakTrafficJinju}
+              onChange={(e) =>
+                handleDesignInputChange(
+                  "peakTrafficJinju",
+                  Number(e.target.value)
+                )
+              }
+              style={peakInput}
+            />
+            <span style={peakUnit}>{t.peakTrafficUnit}</span>
+          </div>
+          <div style={peakRow}>
+            <span style={peakLabel}>{t.peakTrafficMasanLabel}</span>
+            <input
+              type="number"
+              value={designInputs.peakTrafficMasan}
+              onChange={(e) =>
+                handleDesignInputChange(
+                  "peakTrafficMasan",
+                  Number(e.target.value)
+                )
+              }
+              style={peakInput}
+            />
+            <span style={peakUnit}>{t.peakTrafficUnit}</span>
+          </div>
+        </div>
+
+        <p style={hintText}>
+          {t.hintText({
+            speed: designInputs.designSpeedKmH,
+            capPerLane: baseCap,
+            applyCode: designInputs.applyCode,
+            ratio: designInputs.capacityUsageRatio
+          })}
+        </p>
+      </section>
+
+      {/* Direction 1 */}
+      <section style={cardStyle}>
+        <h2>{t.dir1Title}</h2>
+        <SegmentsTableTransposed
+          direction="MasanToJinju"
+          segments={segmentsMasanToJinju}
+          onChange={handleSegmentChange}
+          t={t}
+        />
+        <SummaryRow
+          stats={statsMasanToJinju}
+          traffic={trafficMasanToJinju}
+          t={t}
+        />
+      </section>
+
+      {/* Direction 2 */}
+      <section style={cardStyle}>
+        <h2>{t.dir2Title}</h2>
+        <SegmentsTableTransposed
+          direction="JinjuToMasan"
+          segments={segmentsJinjuToMasan}
+          onChange={handleSegmentChange}
+          t={t}
+        />
+        <SummaryRow
+          stats={statsJinjuToMasan}
+          traffic={trafficJinjuToMasan}
+          t={t}
+        />
+      </section>
+    </div>
+  );
+}
+
+/* ====== segments table & summary ====== */
+
+function SegmentsTableTransposed({ direction, segments, onChange, t }) {
+  const colHeaders = Array.from({ length: SEGMENT_COUNT_PER_DIR }, (_, i) => i + 1);
+
+  return (
+    <table style={tableStyle}>
+      <thead>
+        <tr>
+          <th style={thStyle}>{t.categoryCol}</th>
+          {colHeaders.map((n) => (
+            <th key={n} style={thStyle}>
+              {t.sectionLabel(n)}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th style={rowHeaderStyle}>{t.slopeRow}</th>
+          {colHeaders.map((n, idx) => (
+            <td key={n} style={tdStyle}>
+              <NumberCellInput
+                value={segments[idx]?.slopePercent ?? ""}
+                onChange={(v) =>
+                  onChange(direction, idx, "slopePercent", v)
+                }
+              />
+            </td>
+          ))}
+        </tr>
+        <tr>
+          <th style={rowHeaderStyle}>{t.lengthRow}</th>
+          {colHeaders.map((n, idx) => (
+            <td key={n} style={tdStyle}>
+              <NumberCellInput
+                value={segments[idx]?.lengthM ?? ""}
+                onChange={(v) =>
+                  onChange(direction, idx, "lengthM", v)
+                }
+              />
+            </td>
+          ))}
+        </tr>
+        <tr>
+          <th style={rowHeaderStyle}>{t.elevationRow}</th>
+          {colHeaders.map((n, idx) => (
+            <td key={n} style={tdStyle}>
+              <NumberCellInput
+                value={segments[idx]?.avgElevationM ?? ""}
+                onChange={(v) =>
+                  onChange(direction, idx, "avgElevationM", v)
+                }
+              />
+            </td>
+          ))}
+        </tr>
+        <tr>
+          <th style={rowHeaderStyle}>{t.lanesRow}</th>
+          {colHeaders.map((n, idx) => (
+            <td key={n} style={tdStyle}>
+              <NumberCellInput
+                value={segments[idx]?.laneCount ?? ""}
+                onChange={(v) =>
+                  onChange(direction, idx, "laneCount", v)
+                }
+              />
+            </td>
+          ))}
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+
+function SummaryRow({ stats, traffic, t }) {
+  return (
+    <div style={{ marginTop: 12, fontSize: 13 }}>
+      {t.summaryText(
+        stats.totalLengthM || 0,
+        stats.lanes || 0,
+        traffic.estimatedVolume || 0
+      )}
+    </div>
+  );
+}
+
+function NumberCellInput({ value, onChange }) {
+  return (
+    <input
+      type="number"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      style={cellInputStyle}
+    />
+  );
+}
+
+/* ====== styles ====== */
+
+const cardStyle = {
+  border: "1px solid #ddd",
+  borderRadius: 8,
+  padding: 16,
+  marginBottom: 24,
+  backgroundColor: "#fff"
+};
+
+// 4 columns for main global inputs – keeps boxes nicely aligned
+const gridGlobal = {
+  display: "grid",
+  gridTemplateColumns: "repeat(4, minmax(200px, 1fr))",
+  columnGap: 16,
+  rowGap: 12,
+  alignItems: "flex-start"
+};
+
+const fieldWrapper = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 4
+};
+
+const fieldLabel = {
+  fontSize: 12,
+  fontWeight: 500,
+  color: "#333"
+};
+
+const controlStyle = {
+  width: "100%",
+  padding: "6px 8px",
+  fontSize: 12,
+  lineHeight: 1.4,
+  boxSizing: "border-box",
+  borderRadius: 4,
+  border: "1px solid #ccc"
+};
+
+const readOnlyControlStyle = {
+  ...controlStyle,
+  backgroundColor: "#f3f3f3",
+  color: "#555",
+  cursor: "not-allowed"
+};
+
+// Peak-traffic mini-table
+const peakBlock = {
+  marginTop: 16,
+  borderTop: "1px dashed #ddd",
+  paddingTop: 8,
+  maxWidth: 420
+};
+
+const peakRow = {
+  display: "grid",
+  gridTemplateColumns: "80px 1fr 60px",
+  alignItems: "center",
+  columnGap: 8,
+  marginTop: 4
+};
+
+const peakLabel = {
+  fontSize: 12,
+  textAlign: "left"
+};
+
+const peakInput = {
+  ...controlStyle,
+  padding: "4px 6px"
+};
+
+const peakUnit = {
+  fontSize: 12,
+  textAlign: "left"
+};
+
+const tableStyle = {
+  width: "100%",
+  borderCollapse: "collapse",
+  marginTop: 8,
+  fontSize: 12
+};
+
+const thStyle = {
+  borderBottom: "1px solid #ccc",
+  padding: "4px 6px",
+  textAlign: "center"
+};
+
+const rowHeaderStyle = {
+  borderBottom: "1px solid #eee",
+  padding: "2px 4px",
+  textAlign: "left",
+  background: "#fafafa",
+  minWidth: 120
+};
+
+const tdStyle = {
+  borderBottom: "1px solid #eee",
+  padding: "2px 4px",
+  textAlign: "center"
+};
+
+const cellInputStyle = {
+  width: "100%",
+  padding: "2px 4px",
+  fontSize: 12,
+  boxSizing: "border-box",
+  borderRadius: 3,
+  border: "1px solid #ccc"
+};
+
+const hintText = {
+  marginTop: 8,
+  fontSize: 11,
+  color: "#555"
+};
