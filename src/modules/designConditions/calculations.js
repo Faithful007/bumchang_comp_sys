@@ -7,6 +7,13 @@ export const SPEED_CAPACITY_TABLE = {
   120: 2300
 };
 
+// Service level code mapping A-F -> 1-6
+const SERVICE_LEVEL_MAP = { A: 1, B: 2, C: 3, D: 4, E: 5, F: 6 };
+
+export function serviceLevelCodeToNumber(code) {
+  return SERVICE_LEVEL_MAP[code] || null;
+}
+
 /**
  * Compute basic stats for one direction from its segments.
  * segments: array of { slopePercent, lengthM, avgElevationM, laneCount }

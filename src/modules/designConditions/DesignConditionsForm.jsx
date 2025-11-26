@@ -3,30 +3,21 @@ import React, { useState } from "react";
 import {
   computeDirectionStats,
   estimateTrafficVolume,
-  SPEED_CAPACITY_TABLE
+  SPEED_CAPACITY_TABLE,
+  serviceLevelCodeToNumber
 } from "./calculations";
 
-// import {
-//   getDesignConditionsStrings,
-//   SUPPORTED_LANGS,
-//   LANGUAGE_LABELS
-// } from "../../i18n/designConditionsStrings";
-
-import {
-  getModuleStrings,
-  SUPPORTED_LANGS,
-  LANGUAGE_LABELS
-} from "../../i18n/appStrings";
+import { getModuleStrings } from "../../i18n/appStrings";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { useDesignSpeed } from "../../contexts/DesignSpeedContext";
 
 const EMPTY_SEGMENT = {
   slopePercent: "",
   lengthM: "",
-  avgElevationM: "",
   laneCount: ""
 };
 
-const SEGMENT_COUNT_PER_DIR = 10;
+// Removed fixed segment count constant (now dynamic per direction)
 
 // Excel-style mapping: IF(V=120,0.1, IF(V=100,0.2, IF(V=80,0.3)))
 function defaultApplyCodeForSpeed(speed) {
@@ -41,16 +32,30 @@ function defaultApplyCodeForSpeed(speed) {
 //   const [lang, setLang] = useState("en");
 //   const t = getDesignConditionsStrings(lang);
 export default function DesignConditionsForm() {
-  const { lang, setLang } = useLanguage();
+  const { lang } = useLanguage();
+  const { setDesignSpeed } = useDesignSpeed();
   const t = getModuleStrings("designConditions", lang);
 
+  // Section count per direction
+  const [sectionCountMasanToJinju, setSectionCountMasanToJinju] = useState(10);
+  const [sectionCountJinjuToMasan, setSectionCountJinjuToMasan] = useState(10);
 
-  // 10 segments per direction
+  // Average elevation (single value per direction)
+  const [avgElevationMasanToJinju, setAvgElevationMasanToJinju] = useState(0);
+  const [avgElevationJinjuToMasan, setAvgElevationJinjuToMasan] = useState(0);
+
+  // Tunnel geometry (cross-sectional area and perimeter)
+  const [tunnelArMasanToJinju, setTunnelArMasanToJinju] = useState(0);
+  const [tunnelLpMasanToJinju, setTunnelLpMasanToJinju] = useState(0);
+  const [tunnelArJinjuToMasan, setTunnelArJinjuToMasan] = useState(0);
+  const [tunnelLpJinjuToMasan, setTunnelLpJinjuToMasan] = useState(0);
+
+  // Segments per direction
   const [segmentsMasanToJinju, setSegmentsMasanToJinju] = useState(
-    Array.from({ length: SEGMENT_COUNT_PER_DIR }, () => ({ ...EMPTY_SEGMENT }))
+    Array.from({ length: 10 }, () => ({ ...EMPTY_SEGMENT }))
   );
   const [segmentsJinjuToMasan, setSegmentsJinjuToMasan] = useState(
-    Array.from({ length: SEGMENT_COUNT_PER_DIR }, () => ({ ...EMPTY_SEGMENT }))
+    Array.from({ length: 10 }, () => ({ ...EMPTY_SEGMENT }))
   );
 
   // Global design inputs
@@ -59,6 +64,7 @@ export default function DesignConditionsForm() {
     applyCode: defaultApplyCodeForSpeed(80),
     capacityUsageRatio: defaultApplyCodeForSpeed(80),
     serviceLevelCode: "D",
+    serviceLevelValue: serviceLevelCodeToNumber("D"),
     peakTrafficJinju: 2200,
     peakTrafficMasan: 2200
   });
@@ -78,6 +84,7 @@ export default function DesignConditionsForm() {
   const handleDesignSpeedChange = (speed) => {
     const s = Number(speed);
     const code = defaultApplyCodeForSpeed(s);
+    setDesignSpeed(s); // Update context for other modules
     setDesignInputs((prev) => ({
       ...prev,
       designSpeedKmH: s,
@@ -88,6 +95,36 @@ export default function DesignConditionsForm() {
 
   const handleDesignInputChange = (field, value) => {
     setDesignInputs((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleServiceLevelChange = (code) => {
+    setDesignInputs((prev) => ({
+      ...prev,
+      serviceLevelCode: code,
+      serviceLevelValue: serviceLevelCodeToNumber(code)
+    }));
+  };
+
+  const handleSectionCountChange = (direction, newCount) => {
+    const count = Math.max(1, Math.min(50, Number(newCount) || 1)); // Limit between 1-50
+    
+    if (direction === "MasanToJinju") {
+      setSectionCountMasanToJinju(count);
+      setSegmentsMasanToJinju((prev) => {
+        const updated = Array.from({ length: count }, (_, i) => 
+          prev[i] ? { ...prev[i] } : { ...EMPTY_SEGMENT }
+        );
+        return updated;
+      });
+    } else {
+      setSectionCountJinjuToMasan(count);
+      setSegmentsJinjuToMasan((prev) => {
+        const updated = Array.from({ length: count }, (_, i) => 
+          prev[i] ? { ...prev[i] } : { ...EMPTY_SEGMENT }
+        );
+        return updated;
+      });
+    }
   };
 
   // ---- Calculations per direction ----
@@ -120,30 +157,6 @@ export default function DesignConditionsForm() {
         }}
       >
         <h1 style={{ margin: 0, fontSize: 20 }}>{t.moduleTitle}</h1>
-
-        <div style={{ minWidth: 200, textAlign: "right" }}>
-          <label
-            style={{
-              ...fieldLabel,
-              display: "block",
-              marginBottom: 4,
-              textAlign: "right"
-            }}
-          >
-            {t.languageLabel}
-          </label>
-          <select
-            value={lang}
-            onChange={(e) => setLang(e.target.value)}
-            style={controlStyle}
-          >
-            {SUPPORTED_LANGS.map((code) => (
-              <option key={code} value={code}>
-                {LANGUAGE_LABELS[code] || code}
-              </option>
-            ))}
-          </select>
-        </div>
       </div>
 
       {/* === GLOBAL DESIGN INPUTS === */}
@@ -195,19 +208,26 @@ export default function DesignConditionsForm() {
 
           <div style={fieldWrapper}>
             <label style={fieldLabel}>{t.serviceLevel}</label>
-            <select
-              value={designInputs.serviceLevelCode}
-              onChange={(e) =>
-                handleDesignInputChange("serviceLevelCode", e.target.value)
-              }
-              style={controlStyle}
-            >
-              {["A", "B", "C", "D", "E", "F"].map((code) => (
-                <option key={code} value={code}>
-                  {code}
-                </option>
-              ))}
-            </select>
+            <div style={{ display: "flex", gap: 8 }}>
+              <select
+                value={designInputs.serviceLevelCode}
+                onChange={(e) => handleServiceLevelChange(e.target.value)}
+                style={{ ...controlStyle, flex: 1 }}
+              >
+                {["A", "B", "C", "D", "E", "F"].map((code) => (
+                  <option key={code} value={code}>
+                    {code}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="number"
+                value={designInputs.serviceLevelValue}
+                readOnly
+                disabled
+                style={{ ...readOnlyControlStyle, width: 60 }}
+              />
+            </div>
           </div>
         </div>
 
@@ -260,11 +280,42 @@ export default function DesignConditionsForm() {
 
       {/* Direction 1 */}
       <section style={cardStyle}>
-        <h2>{t.dir1Title}</h2>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <h2 style={{ margin: 0 }}>{t.dir1Title}</h2>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <label style={fieldLabel}>{t.numberOfSectionsLabel}:</label>
+              <input
+                type="number"
+                min="1"
+                max="50"
+                value={sectionCountMasanToJinju}
+                onChange={(e) => handleSectionCountChange("MasanToJinju", e.target.value)}
+                style={{ ...controlStyle, width: 80 }}
+              />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <label style={fieldLabel}>{t.averageElevationLabel}:</label>
+              <input
+                type="number"
+                value={avgElevationMasanToJinju}
+                onChange={(e) => setAvgElevationMasanToJinju(Number(e.target.value))}
+                style={{ ...controlStyle, width: 100 }}
+              />
+            </div>
+          </div>
+        </div>
         <SegmentsTableTransposed
           direction="MasanToJinju"
           segments={segmentsMasanToJinju}
           onChange={handleSegmentChange}
+          t={t}
+        />
+        <TunnelGeometry
+          ar={tunnelArMasanToJinju}
+          lp={tunnelLpMasanToJinju}
+          onArChange={setTunnelArMasanToJinju}
+          onLpChange={setTunnelLpMasanToJinju}
           t={t}
         />
         <SummaryRow
@@ -276,11 +327,42 @@ export default function DesignConditionsForm() {
 
       {/* Direction 2 */}
       <section style={cardStyle}>
-        <h2>{t.dir2Title}</h2>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <h2 style={{ margin: 0 }}>{t.dir2Title}</h2>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <label style={fieldLabel}>{t.numberOfSectionsLabel}:</label>
+              <input
+                type="number"
+                min="1"
+                max="50"
+                value={sectionCountJinjuToMasan}
+                onChange={(e) => handleSectionCountChange("JinjuToMasan", e.target.value)}
+                style={{ ...controlStyle, width: 80 }}
+              />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <label style={fieldLabel}>{t.averageElevationLabel}:</label>
+              <input
+                type="number"
+                value={avgElevationJinjuToMasan}
+                onChange={(e) => setAvgElevationJinjuToMasan(Number(e.target.value))}
+                style={{ ...controlStyle, width: 100 }}
+              />
+            </div>
+          </div>
+        </div>
         <SegmentsTableTransposed
           direction="JinjuToMasan"
           segments={segmentsJinjuToMasan}
           onChange={handleSegmentChange}
+          t={t}
+        />
+        <TunnelGeometry
+          ar={tunnelArJinjuToMasan}
+          lp={tunnelLpJinjuToMasan}
+          onArChange={setTunnelArJinjuToMasan}
+          onLpChange={setTunnelLpJinjuToMasan}
           t={t}
         />
         <SummaryRow
@@ -296,7 +378,7 @@ export default function DesignConditionsForm() {
 /* ====== segments table & summary ====== */
 
 function SegmentsTableTransposed({ direction, segments, onChange, t }) {
-  const colHeaders = Array.from({ length: SEGMENT_COUNT_PER_DIR }, (_, i) => i + 1);
+  const colHeaders = Array.from({ length: segments.length }, (_, i) => i + 1);
 
   return (
     <table style={tableStyle}>
@@ -338,19 +420,6 @@ function SegmentsTableTransposed({ direction, segments, onChange, t }) {
           ))}
         </tr>
         <tr>
-          <th style={rowHeaderStyle}>{t.elevationRow}</th>
-          {colHeaders.map((n, idx) => (
-            <td key={n} style={tdStyle}>
-              <NumberCellInput
-                value={segments[idx]?.avgElevationM ?? ""}
-                onChange={(v) =>
-                  onChange(direction, idx, "avgElevationM", v)
-                }
-              />
-            </td>
-          ))}
-        </tr>
-        <tr>
           <th style={rowHeaderStyle}>{t.lanesRow}</th>
           {colHeaders.map((n, idx) => (
             <td key={n} style={tdStyle}>
@@ -365,6 +434,49 @@ function SegmentsTableTransposed({ direction, segments, onChange, t }) {
         </tr>
       </tbody>
     </table>
+  );
+}
+
+function TunnelGeometry({ ar, lp, onArChange, onLpChange, t }) {
+  // Calculate representative diameter Dr = (4 * Ar) / Lp
+  const dr = lp > 0 ? (4 * ar) / lp : 0;
+
+  return (
+    <div style={{ marginTop: 12, marginBottom: 8, padding: 12, backgroundColor: '#f9f9f9', borderRadius: 4 }}>
+      <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>{t.tunnelGeometryTitle}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, alignItems: 'end' }}>
+        <div style={fieldWrapper}>
+          <label style={fieldLabel}>{t.tunnelArLabel}</label>
+          <input
+            type="number"
+            value={ar}
+            onChange={(e) => onArChange(Number(e.target.value))}
+            style={controlStyle}
+            step="0.01"
+          />
+        </div>
+        <div style={fieldWrapper}>
+          <label style={fieldLabel}>{t.tunnelLpLabel}</label>
+          <input
+            type="number"
+            value={lp}
+            onChange={(e) => onLpChange(Number(e.target.value))}
+            style={controlStyle}
+            step="0.01"
+          />
+        </div>
+        <div style={fieldWrapper}>
+          <label style={fieldLabel}>{t.tunnelDrLabel}</label>
+          <input
+            type="number"
+            value={dr.toFixed(3)}
+            readOnly
+            disabled
+            style={readOnlyControlStyle}
+          />
+        </div>
+      </div>
+    </div>
   );
 }
 

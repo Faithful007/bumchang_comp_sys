@@ -6,18 +6,13 @@ import {
 } from "./calculations";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { getModuleStrings } from "../../i18n/appStrings";
-
-// Row labels (static; high-level language is via t.*)
-const VEHICLE_LABELS = {
-  passengerGasoline: "Passenger car – gasoline (휘발유)",
-  passengerDiesel: "Passenger car – diesel (경유)",
-  busSmall: "Bus – small (소형)",
-  busLarge: "Bus – large (대형)",
-  truckSmall: "Truck – small (소형)",
-  truckMedium: "Truck – medium (중형)",
-  truckLarge: "Truck – large (대형)",
-  truckSpecial: "Special (특수)"
-};
+import {
+  SMOKE_EMISSION_FACTORS_G_PER_KM_DEFAULT,
+  SMOKE_VEHICLE_KEYS,
+  computeSmokeQ0Map,
+  SMOKE_REDUCTION_FACTOR,
+  SMOKE_REFERENCE_SPEED_KMH
+} from "../smoke/smokeParameters";
 
 // Default per-vehicle daily volumes (Excel example)
 const DEFAULT_DIRECTION_COUNTS = {
@@ -42,6 +37,21 @@ export default function TrafficEstimationModule() {
   const result1 = computeFromDirection(dir1);
   const result2 = computeFromDirection(dir2);
 
+  // Smoke emission factors local state (editable)
+  const [smokeEmissionFactors, setSmokeEmissionFactors] = useState({
+    ...SMOKE_EMISSION_FACTORS_G_PER_KM_DEFAULT
+  });
+
+  const smokeQ0Map = computeSmokeQ0Map(smokeEmissionFactors);
+
+  const handleSmokeFactorChange = (key) => (e) => {
+    const val = parseFloat(e.target.value);
+    setSmokeEmissionFactors((prev) => ({
+      ...prev,
+      [key]: Number.isFinite(val) ? val : 0
+    }));
+  };
+
   return (
     <section style={outerSection}>
       <h2 style={{ marginTop: 0 }}>{t.title}</h2>
@@ -63,6 +73,50 @@ export default function TrafficEstimationModule() {
           result={result2}
           t={t}
         />
+      </div>
+
+      {/* Smoke emission parameters table */}
+      <div style={{ marginTop: 32 }}>
+        <h3 style={{ margin: "12px 0" }}>{t.smokeTitle}</h3>
+        <div style={smokeMetaRow}>
+          <div style={smokeMetaBox}>
+            <strong>{t.smokeReductionFactorLabel}:</strong> {SMOKE_REDUCTION_FACTOR}
+          </div>
+          <div style={smokeMetaBox}>
+            <strong>{t.smokeReferenceSpeedLabel}:</strong> {SMOKE_REFERENCE_SPEED_KMH}
+          </div>
+        </div>
+        <table style={smokeTableStyle}>
+          <colgroup>
+            <col style={{ width: '40%' }} />
+            <col style={{ width: '30%' }} />
+            <col style={{ width: '30%' }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th style={thVehicle}>{t.vehicleHeader}</th>
+              <th style={thNumeric}>{t.smokeEmissionHeader}</th>
+              <th style={thNumeric}>{t.smokeQ0Header}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {SMOKE_VEHICLE_KEYS.map((vk) => (
+              <tr key={vk}>
+                <td style={tdVehicle}>{renderVehicleLabel(vk, t)}</td>
+                <td style={tdNumeric}>
+                  <input
+                    type="number"
+                    step="0.0000000001"
+                    value={smokeEmissionFactors[vk]}
+                    onChange={handleSmokeFactorChange(vk)}
+                    style={inputSmallRight}
+                  />
+                </td>
+                <td style={tdNumeric}>{smokeQ0Map[vk]?.toFixed(4)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </section>
   );
@@ -250,7 +304,7 @@ function EditableResultsTable({ state, result, onCountChange, t }) {
       <tbody>
         {VEHICLE_KEYS.map((key) => (
           <tr key={key}>
-            <td style={td}>{VEHICLE_LABELS[key]}</td>
+            <td style={td}>{renderVehicleLabel(key, t)}</td>
             <td style={tdRight}>
               <input
                 type="number"
@@ -427,347 +481,55 @@ const tdRight = {
   textAlign: "right"
 };
 
+const smokeMetaRow = {
+  display: "flex",
+  gap: 16,
+  flexWrap: "wrap",
+  marginBottom: 8,
+  fontSize: 11
+};
 
-// // src/modules/trafficEstimation/TrafficEstimationModule.jsx
-// import React, { useState } from "react";
-// import {
-//   computeEstimatedTraffic,
-//   VEHICLE_KEYS
-// } from "./calculations";
-// import { useLanguage } from "../../i18n/LanguageContext";
-// import { getModuleStrings } from "../../i18n/appStrings";
+// Added dedicated styles for smoke emission table alignment
+const smokeTableStyle = {
+  width: '100%',
+  borderCollapse: 'collapse',
+  tableLayout: 'fixed'
+};
+const thVehicle = { ...th, textAlign: 'left' };
+const thNumeric = { ...th, textAlign: 'right' };
+const tdVehicle = { ...td, textAlign: 'left' };
+const tdNumeric = { ...tdRight };
+const inputSmallRight = { ...inputSmall, textAlign: 'right' };
 
-// // Row labels (these are more static,
-// // high-level language is handled via t.* strings)
-// const VEHICLE_LABELS = {
-//   passengerGasoline: "Passenger car – gasoline (휘발유)",
-//   passengerDiesel: "Passenger car – diesel (경유)",
-//   busSmall: "Bus – small (소형)",
-//   busLarge: "Bus – large (대형)",
-//   truckSmall: "Truck – small (소형)",
-//   truckMedium: "Truck – medium (중형)",
-//   truckLarge: "Truck – large (대형)",
-//   truckSpecial: "Special (특수)"
-// };
+const smokeMetaBox = {
+  background: "#fff",
+  border: "1px solid #eee",
+  borderRadius: 4,
+  padding: "4px 8px"
+};
 
-// // Default numbers from Excel example
-// const DEFAULT_DIRECTION_INPUT = {
-//   year: 2222,
-//   passengerAADT: 83007, // I48 / I65
-//   busSmall: 0,          // E열
-//   busLarge: 815,        // F열
-//   truckSmall: 14331,    // G열
-//   truckMedium: 3020,    // H열
-//   truckLarge: 332,      // I열
-//   truckSpecial: 862     // J열
-// };
+// Localized vehicle label resolver
+function renderVehicleLabel(key, t) {
+  switch (key) {
+    case "passengerGasoline":
+      return t.passengerGasoline;
+    case "passengerDiesel":
+      return t.passengerDiesel;
+    case "busSmall":
+      return t.busSmall;
+    case "busLarge":
+      return t.busLarge;
+    case "truckSmall":
+      return t.truckSmall;
+    case "truckMedium":
+      return t.truckMedium;
+    case "truckLarge":
+      return t.truckLarge;
+    case "truckSpecial":
+      return t.truckSpecial;
+    default:
+      return key;
+  }
+}
 
-// export default function TrafficEstimationModule() {
-//   const { lang } = useLanguage();
-//   const t = getModuleStrings("trafficEstimation", lang);
-
-//   const [dir1, setDir1] = useState({ ...DEFAULT_DIRECTION_INPUT });
-//   const [dir2, setDir2] = useState({ ...DEFAULT_DIRECTION_INPUT });
-
-//   const result1 = computeEstimatedTraffic(dir1);
-//   const result2 = computeEstimatedTraffic(dir2);
-
-//   return (
-//     <section style={outerSection}>
-//       <h2 style={{ marginTop: 0 }}>{t.title}</h2>
-
-//       <p style={explanation}>{t.explanation}</p>
-
-//       <div style={twoColumn}>
-//         <DirectionCard
-//           title={t.dir1Title}
-//           state={dir1}
-//           onChange={setDir1}
-//           result={result1}
-//           t={t}
-//         />
-//         <DirectionCard
-//           title={t.dir2Title}
-//           state={dir2}
-//           onChange={setDir2}
-//           result={result2}
-//           t={t}
-//         />
-//       </div>
-//     </section>
-//   );
-// }
-
-// function DirectionCard({ title, state, onChange, result, t }) {
-//   const {
-//     year,
-//     passengerAADT,
-//     busSmall,
-//     busLarge,
-//     truckSmall,
-//     truckMedium,
-//     truckLarge,
-//     truckSpecial
-//   } = state;
-
-//   const handle = (field) => (e) => {
-//     const value = e.target.value;
-//     onChange((prev) => ({
-//       ...prev,
-//       [field]: field === "year" ? Number(value) || "" : Number(value) || 0
-//     }));
-//   };
-
-//   return (
-//     <div style={card}>
-//       <h3 style={{ marginTop: 0 }}>{title}</h3>
-
-//       {/* Top row: target year + summary */}
-//       <div style={headerRow}>
-//         <div style={fieldGroup}>
-//           <label style={label}>{t.targetYear}</label>
-//           <input
-//             type="number"
-//             value={year}
-//             onChange={handle("year")}
-//             style={input}
-//           />
-//         </div>
-
-//         <div style={summaryBox}>
-//           <div style={summaryLine}>
-//             <span>{t.totalAadt}</span>
-//             <strong>
-//               {result.totalAadt
-//                 ? Math.round(result.totalAadt).toLocaleString()
-//                 : "-"}
-//             </strong>
-//           </div>
-//           <div style={summaryLine}>
-//             <span>{t.heavyMix}</span>
-//             <strong>
-//               {result.heavyVehicleMixPt != null
-//                 ? result.heavyVehicleMixPt.toFixed(2)
-//                 : "-"}
-//             </strong>
-//           </div>
-//         </div>
-//       </div>
-
-//       {/* Base inputs: equivalent to I, F..J cells in Excel */}
-//       <div style={inputsGrid}>
-//         <Field
-//           label={t.passengerAadt}
-//           value={passengerAADT}
-//           onChange={handle("passengerAADT")}
-//         />
-//         <Field
-//           label={t.busSmall}
-//           value={busSmall}
-//           onChange={handle("busSmall")}
-//         />
-//         <Field
-//           label={t.busLarge}
-//           value={busLarge}
-//           onChange={handle("busLarge")}
-//         />
-//         <Field
-//           label={t.truckSmall}
-//           value={truckSmall}
-//           onChange={handle("truckSmall")}
-//         />
-//         <Field
-//           label={t.truckMedium}
-//           value={truckMedium}
-//           onChange={handle("truckMedium")}
-//         />
-//         <Field
-//           label={t.truckLarge}
-//           value={truckLarge}
-//           onChange={handle("truckLarge")}
-//         />
-//         <Field
-//           label={t.truckSpecial}
-//           value={truckSpecial}
-//           onChange={handle("truckSpecial")}
-//         />
-//       </div>
-
-//       <ResultsTable result={result} t={t} />
-//     </div>
-//   );
-// }
-
-// function Field({ label, value, onChange }) {
-//   return (
-//     <div style={fieldGroup}>
-//       <label style={labelStyle}>{label}</label>
-//       <input
-//         type="number"
-//         value={value}
-//         onChange={onChange}
-//         style={input}
-//       />
-//     </div>
-//   );
-// }
-
-// function ResultsTable({ result, t }) {
-//   const { counts, mixPercents, mixPercentSum, heavyVehicleMixPt } = result;
-
-//   return (
-//     <table style={table}>
-//       <thead>
-//         <tr>
-//           <th style={th}>{t.vehicleHeader}</th>
-//           <th style={th}>{t.dailyHeader}</th>
-//           <th style={th}>{t.mixHeader}</th>
-//         </tr>
-//       </thead>
-//       <tbody>
-//         {VEHICLE_KEYS.map((key) => (
-//           <tr key={key}>
-//             <td style={td}>{VEHICLE_LABELS[key]}</td>
-//             <td style={tdRight}>
-//               {counts && counts[key] != null
-//                 ? Math.round(counts[key]).toLocaleString()
-//                 : "-"}
-//             </td>
-//             <td style={tdRight}>
-//               {mixPercents && mixPercents[key] != null
-//                 ? mixPercents[key].toFixed(2)
-//                 : "-"}
-//             </td>
-//           </tr>
-//         ))}
-//         <tr>
-//           <td style={{ ...td, fontWeight: "bold" }}>{t.totalRow}</td>
-//           <td style={{ ...tdRight, fontWeight: "bold" }}>
-//             {result.totalAadt
-//               ? Math.round(result.totalAadt).toLocaleString()
-//               : "-"}
-//           </td>
-//           <td style={{ ...tdRight, fontWeight: "bold" }}>
-//             {mixPercentSum != null ? mixPercentSum.toFixed(2) : "-"}
-//           </td>
-//         </tr>
-//         <tr>
-//           <td style={td}>{t.heavyMixRow}</td>
-//           <td style={tdRight}>–</td>
-//           <td style={{ ...tdRight, fontWeight: "bold" }}>
-//             {heavyVehicleMixPt != null ? heavyVehicleMixPt.toFixed(2) : "-"}
-//           </td>
-//         </tr>
-//       </tbody>
-//     </table>
-//   );
-// }
-
-// /* ---------- styles ---------- */
-
-// const outerSection = {
-//   border: "1px solid #ddd",
-//   borderRadius: 8,
-//   padding: 16,
-//   margin: 16,
-//   background: "#fafafa"
-// };
-
-// const explanation = {
-//   fontSize: 12,
-//   color: "#555",
-//   marginBottom: 12
-// };
-
-// const twoColumn = {
-//   display: "grid",
-//   gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
-//   gap: 16
-// };
-
-// const card = {
-//   background: "#fff",
-//   borderRadius: 8,
-//   border: "1px solid #ddd",
-//   padding: 12
-// };
-
-// const headerRow = {
-//   display: "flex",
-//   justifyContent: "space-between",
-//   alignItems: "flex-start",
-//   gap: 12,
-//   marginBottom: 12,
-//   flexWrap: "wrap"
-// };
-
-// const fieldGroup = {
-//   display: "flex",
-//   flexDirection: "column",
-//   gap: 4,
-//   minWidth: 220
-// };
-
-// const labelStyle = {
-//   fontSize: 12,
-//   fontWeight: 500,
-//   color: "#333"
-// };
-
-// const label = labelStyle;
-
-// const input = {
-//   fontSize: 12,
-//   padding: "4px 6px",
-//   borderRadius: 4,
-//   border: "1px solid #ccc",
-//   boxSizing: "border-box"
-// };
-
-// const summaryBox = {
-//   borderRadius: 6,
-//   border: "1px solid #eee",
-//   padding: 8,
-//   minWidth: 200,
-//   fontSize: 12,
-//   background: "#fafafa"
-// };
-
-// const summaryLine = {
-//   display: "flex",
-//   justifyContent: "space-between",
-//   alignItems: "center",
-//   marginBottom: 4
-// };
-
-// const inputsGrid = {
-//   display: "grid",
-//   gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-//   gap: 10,
-//   marginBottom: 12
-// };
-
-// const table = {
-//   width: "100%",
-//   borderCollapse: "collapse",
-//   fontSize: 11
-// };
-
-// const th = {
-//   borderBottom: "1px solid #ccc",
-//   padding: "4px 6px",
-//   textAlign: "center",
-//   background: "#f5f5f5"
-// };
-
-// const td = {
-//   borderBottom: "1px solid #eee",
-//   padding: "3px 6px",
-//   textAlign: "left"
-// };
-
-// const tdRight = {
-//   ...td,
-//   textAlign: "right"
-// };
 
