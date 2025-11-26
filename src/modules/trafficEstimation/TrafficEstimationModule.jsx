@@ -1,5 +1,5 @@
 // src/modules/trafficEstimation/TrafficEstimationModule.jsx
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   computeEstimatedTraffic,
   VEHICLE_KEYS
@@ -13,6 +13,13 @@ import {
   SMOKE_REDUCTION_FACTOR,
   SMOKE_REFERENCE_SPEED_KMH
 } from "../smoke/smokeParameters";
+import {
+  parseCSV,
+  readFileAsText,
+  exportToCSV,
+  downloadCSV,
+  exportToPDF
+} from "./dataImportExport";
 
 // Default per-vehicle daily volumes (Excel example)
 const DEFAULT_DIRECTION_COUNTS = {
@@ -30,12 +37,131 @@ const DEFAULT_DIRECTION_COUNTS = {
 export default function TrafficEstimationModule() {
   const { lang } = useLanguage();
   const t = getModuleStrings("trafficEstimation", lang);
+  const fileInputRef = useRef(null);
 
   const [dir1, setDir1] = useState({ ...DEFAULT_DIRECTION_COUNTS });
   const [dir2, setDir2] = useState({ ...DEFAULT_DIRECTION_COUNTS });
+  const [importMessage, setImportMessage] = useState("");
+  
+  // Batch processing states
+  const [importedData, setImportedData] = useState([]);
+  const [computedResults, setComputedResults] = useState([]);
+  const [hasUncomputedData, setHasUncomputedData] = useState(false);
 
   const result1 = computeFromDirection(dir1);
   const result2 = computeFromDirection(dir2);
+
+  // Handle file import
+  const handleFileImport = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await readFileAsText(file);
+      const data = parseCSV(text);
+      
+      if (data.length > 0) {
+        // Store imported data for batch processing
+        setImportedData(data);
+        setHasUncomputedData(true);
+        setComputedResults([]); // Clear previous results
+        
+        // Also update UI with first two entries for preview
+        setDir1(data[0]);
+        if (data.length > 1) {
+          setDir2(data[1]);
+        }
+        
+        setImportMessage(t.importSuccess + ` (${data.length} ${t.entriesLoaded || 'entries loaded'})`);
+        setTimeout(() => setImportMessage(""), 3000);
+      }
+    } catch (error) {
+      setImportMessage(t.importError);
+      setTimeout(() => setImportMessage(""), 3000);
+      console.error("Import error:", error);
+    }
+    
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  // Handle compute
+  const handleCompute = () => {
+    if (importedData.length === 0) {
+      setImportMessage(t.noDataToCompute || "No data to compute");
+      setTimeout(() => setImportMessage(""), 3000);
+      return;
+    }
+
+    try {
+      const results = importedData.map((entry) => {
+        const computed = computeFromDirection(entry);
+        // Flatten the computed results to include totalAadt and heavyVehicleMixPt at top level
+        return {
+          ...entry,
+          totalAadt: computed.totalAadt,
+          heavyVehicleMixPt: computed.heavyVehicleMixPt,
+          counts: computed.counts,
+          mixPercents: computed.mixPercents,
+          mixPercentSum: computed.mixPercentSum
+        };
+      });
+      
+      setComputedResults(results);
+      setHasUncomputedData(false);
+      setImportMessage(t.computeSuccess || `Successfully computed ${results.length} entries`);
+      setTimeout(() => setImportMessage(""), 3000);
+    } catch (error) {
+      setImportMessage(t.computeError || "Error computing data");
+      setTimeout(() => setImportMessage(""), 3000);
+      console.error("Compute error:", error);
+    }
+  };
+
+  // Handle export CSV
+  const handleExportCSV = () => {
+    if (computedResults.length > 0) {
+      // Export batch computed results
+      const csvContent = exportToCSV(computedResults, "Computed Results");
+      downloadCSV(csvContent, `traffic_estimation_batch_${Date.now()}.csv`);
+    } else {
+      // Export current manual entries
+      const data1 = { ...dir1, ...result1 };
+      const data2 = { ...dir2, ...result2 };
+      
+      const csv1 = exportToCSV([data1], t.dir1Title);
+      const csv2 = exportToCSV([data2], t.dir2Title);
+      
+      // Combine both directions
+      const combined = csv1 + '\n' + csv2.split('\n').slice(1).join('\n');
+      
+      downloadCSV(combined, `traffic_estimation_${Date.now()}.csv`);
+    }
+  };
+
+  // Handle export PDF
+  const handleExportPDF = () => {
+    try {
+      if (computedResults.length > 0) {
+        // Export batch computed results
+        exportToPDF(computedResults, t.title);
+        setImportMessage(t.pdfExportSuccess || "PDF print dialog opened!");
+      } else {
+        // Export current manual entries
+        const data1 = { ...dir1, ...result1 };
+        const data2 = { ...dir2, ...result2 };
+        exportToPDF([data1, data2], t.title);
+        setImportMessage(t.pdfExportSuccess || "PDF print dialog opened!");
+      }
+      setTimeout(() => setImportMessage(""), 3000);
+    } catch (error) {
+      setImportMessage(t.pdfExportError || "Error exporting PDF");
+      setTimeout(() => setImportMessage(""), 3000);
+      console.error("PDF export error:", error);
+    }
+  };
 
   // Smoke emission factors local state (editable)
   const [smokeEmissionFactors, setSmokeEmissionFactors] = useState({
@@ -54,7 +180,77 @@ export default function TrafficEstimationModule() {
 
   return (
     <section style={outerSection}>
-      <h2 style={{ marginTop: 0 }}>{t.title}</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <h2 style={{ marginTop: 0, marginBottom: 0 }}>{t.title}</h2>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.txt,.xls,.xlsx"
+            onChange={handleFileImport}
+            style={{ display: 'none' }}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            style={buttonStyle}
+            title={t.importInstructions}
+            aria-label={t.importButton}
+          >
+            <span role="img" aria-label="folder icon" style={{ fontSize: 16 }}>📁</span> {t.importButton}
+          </button>
+          <button
+            onClick={handleCompute}
+            style={{
+              ...buttonStyle,
+              backgroundColor: hasUncomputedData ? '#4CAF50' : '#f5f5f5',
+              color: hasUncomputedData ? '#fff' : '#666',
+              cursor: importedData.length > 0 ? 'pointer' : 'not-allowed',
+              opacity: importedData.length > 0 ? 1 : 0.5
+            }}
+            disabled={importedData.length === 0}
+            aria-label={t.computeButton || "Compute"}
+          >
+            <span role="img" aria-label="calculator icon" style={{ fontSize: 16 }}>🧮</span> {t.computeButton || "Compute"}
+          </button>
+          <button
+            onClick={handleExportCSV}
+            style={{
+              ...buttonStyle,
+              opacity: (computedResults.length > 0 || (!hasUncomputedData && importedData.length === 0)) ? 1 : 0.5
+            }}
+            disabled={hasUncomputedData}
+            aria-label={t.exportCSVButton || t.exportButton}
+            title={hasUncomputedData ? (t.computeFirstMessage || "Please compute data first") : ""}
+          >
+            <span role="img" aria-label="csv file icon" style={{ fontSize: 16 }}>📊</span> {t.exportCSVButton || "CSV"}
+          </button>
+          <button
+            onClick={handleExportPDF}
+            style={{
+              ...buttonStyle,
+              opacity: (computedResults.length > 0 || (!hasUncomputedData && importedData.length === 0)) ? 1 : 0.5
+            }}
+            disabled={hasUncomputedData}
+            aria-label={t.exportPDFButton || "Export PDF"}
+            title={hasUncomputedData ? (t.computeFirstMessage || "Please compute data first") : ""}
+          >
+            <span role="img" aria-label="pdf file icon" style={{ fontSize: 16 }}>📄</span> {t.exportPDFButton || "PDF"}
+          </button>
+        </div>
+      </div>
+
+      {importMessage && (
+        <div style={{
+          padding: '8px 12px',
+          marginBottom: 12,
+          borderRadius: 4,
+          backgroundColor: importMessage.includes('Error') || importMessage.includes('오류') ? '#fee' : '#efe',
+          border: `1px solid ${importMessage.includes('Error') || importMessage.includes('오류') ? '#fcc' : '#cfc'}`,
+          fontSize: 12
+        }}>
+          {importMessage}
+        </div>
+      )}
 
       <p style={explanation}>{t.explanation}</p>
 
@@ -506,6 +702,18 @@ const smokeMetaBox = {
   border: "1px solid #eee",
   borderRadius: 4,
   padding: "4px 8px"
+};
+
+const buttonStyle = {
+  padding: "6px 12px",
+  fontSize: 12,
+  borderRadius: 4,
+  border: "1px solid #ccc",
+  backgroundColor: "#fff",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  gap: 4
 };
 
 // Localized vehicle label resolver

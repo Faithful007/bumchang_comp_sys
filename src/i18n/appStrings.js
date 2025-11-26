@@ -99,7 +99,22 @@ const STRINGS = {
       smokeEmissionHeader: "Emission factor g/km",
       smokeQ0Header: "q0T [m²/h·veh]",
       smokeReductionFactorLabel: "Reductiefactor",
-      smokeReferenceSpeedLabel: "Referentiesnelheid [km/h]"
+      smokeReferenceSpeedLabel: "Referentiesnelheid [km/h]",
+      importButton: "Import Data",
+      computeButton: "Compute",
+      exportButton: "Export Results",
+      exportCSVButton: "Export CSV",
+      exportPDFButton: "Export PDF",
+      importInstructions: "Upload Excel or CSV file (Columns: Year, Gasoline, Diesel, BusSmall, BusLarge, TruckSmall, TruckMedium, TruckLarge, Special)",
+      importSuccess: "Data imported successfully!",
+      importError: "Error importing file. Please check format.",
+      entriesLoaded: "entries loaded",
+      noDataToCompute: "No data to compute. Please import a file first.",
+      computeSuccess: "Data computed successfully!",
+      computeError: "Error computing data. Please check the imported data.",
+      computeFirstMessage: "Please compute data before exporting",
+      pdfExportSuccess: "Print dialog opened. Use 'Save as PDF' option.",
+      pdfExportError: "Error opening print dialog. Please try CSV export."
     },
 
     trafficDensity: {
@@ -220,7 +235,22 @@ const STRINGS = {
       smokeEmissionHeader: "배출계수 g/km",
       smokeQ0Header: "q0T [m²/h·대]",
       smokeReductionFactorLabel: "감소계수",
-      smokeReferenceSpeedLabel: "기준 속도 [km/h]"
+      smokeReferenceSpeedLabel: "기준 속도 [km/h]",
+      importButton: "데이터 가져오기",
+      computeButton: "계산",
+      exportButton: "결과 내보내기",
+      exportCSVButton: "CSV 내보내기",
+      exportPDFButton: "PDF 내보내기",
+      importInstructions: "엑셀 또는 CSV 파일 업로드 (열: 목표년도, 휘발유, 경유, 버스 소형, 버스 대형, 트럭 소형, 트럭 중형, 트럭 대형, 특수)",
+      importSuccess: "데이터를 성공적으로 가져왔습니다!",
+      importError: "파일 가져오기 오류. 형식을 확인하세요.",
+      entriesLoaded: "개 항목 로드됨",
+      noDataToCompute: "계산할 데이터가 없습니다. 먼저 파일을 가져오세요.",
+      computeSuccess: "데이터 계산 완료!",
+      computeError: "데이터 계산 오류. 가져온 데이터를 확인하세요.",
+      computeFirstMessage: "내보내기 전에 데이터를 계산하세요",
+      pdfExportSuccess: "인쇄 대화상자 열림. 'PDF로 저장' 옵션 사용.",
+      pdfExportError: "인쇄 대화상자 열기 오류. CSV 내보내기를 시도하세요."
     },
 
     trafficDensity: {
