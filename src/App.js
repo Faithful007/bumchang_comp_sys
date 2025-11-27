@@ -16,12 +16,39 @@ function AppContent() {
   const { lang } = useLanguage();
   const t = getModuleStrings("app", lang);
   
+  const containerStyle = {
+    padding: '8px',
+    maxWidth: '100%',
+    margin: '0 auto',
+    overflowX: 'hidden'
+  };
+
+  const navStyle = {
+    marginBottom: 12,
+    display: 'flex',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '8px',
+    backgroundColor: '#f5f5f5',
+    borderRadius: '4px'
+  };
+
+  const linkStyle = {
+    padding: '4px 8px',
+    textDecoration: 'none',
+    color: '#0066cc',
+    fontWeight: 500
+  };
+  
   return (
-    <div style={{ padding: 12 }}>
-      <nav style={{ marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <Link to="/">{t.home}</Link>{" "}|{" "}
-          <Link to="/catalog">{t.dataCatalog}</Link>
+    <div style={containerStyle}>
+      <nav style={navStyle}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <Link to="/" style={linkStyle}>{t.home}</Link>
+          <span>|</span>
+          <Link to="/catalog" style={linkStyle}>{t.dataCatalog}</Link>
         </div>
         <LanguageSelector />
       </nav>
@@ -46,7 +73,7 @@ function AppContent() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/bumchang_comp_sys">
       <LanguageProvider>
         <DesignSpeedProvider>
           <ImportedTableProvider>

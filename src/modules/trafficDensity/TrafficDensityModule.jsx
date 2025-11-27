@@ -11,9 +11,11 @@ import { getModuleStrings } from "../../i18n/appStrings";
 const containerStyle = {
   border: "1px solid #ddd",
   borderRadius: 8,
-  padding: 16,
-  margin: 16,
-  backgroundColor: "#fff"
+  padding: '8px',
+  margin: '8px',
+  backgroundColor: "#fff",
+  maxWidth: '100%',
+  overflowX: 'hidden'
 };
 
 const labelStyle = {
@@ -25,7 +27,7 @@ const labelStyle = {
 const inputRowStyle = {
   display: "flex",
   flexWrap: "wrap",
-  gap: 16,
+  gap: 12,
   marginBottom: 12
 };
 
@@ -45,14 +47,17 @@ const inputStyle = {
 const tableStyle = {
   width: "100%",
   borderCollapse: "collapse",
-  fontSize: 13,
-  backgroundColor: "#fff"
+  fontSize: 'clamp(10px, 2.5vw, 13px)',
+  backgroundColor: "#fff",
+  overflowX: 'auto',
+  display: 'block'
 };
 
 const thtdBase = {
   border: "1px solid #ddd",
   padding: "4px 6px",
-  textAlign: "center"
+  textAlign: "center",
+  minWidth: '40px'
 };
 
 export default function TrafficDensityModule() {
@@ -76,7 +81,7 @@ export default function TrafficDensityModule() {
 
   return (
     <section style={containerStyle}>
-      <h2 style={{ marginTop: 0, marginBottom: 12 }}>
+      <h2 style={{ marginTop: 0, marginBottom: 12, fontSize: 'clamp(16px, 4vw, 20px)' }}>
         {t.title}
       </h2>
 
@@ -111,17 +116,18 @@ export default function TrafficDensityModule() {
       </div>
 
       {/* Result table: rows 210~212 */}
-      <table style={tableStyle}>
-        <thead>
-          <tr>
-            <th style={{ ...thtdBase, width: 140 }}></th>
-            {DEFAULT_SPEEDS_KMH.map((v) => (
-              <th key={v} style={thtdBase}>
-                {v}
-              </th>
-            ))}
-          </tr>
-        </thead>
+      <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <table style={tableStyle}>
+          <thead>
+            <tr>
+              <th style={{ ...thtdBase, minWidth: '100px', maxWidth: '140px' }}></th>
+              {DEFAULT_SPEEDS_KMH.map((v) => (
+                <th key={v} style={thtdBase}>
+                  {v}
+                </th>
+              ))}
+            </tr>
+          </thead>
         <tbody>
           {/* 차량속도 (row 210) */}
           <tr>
@@ -160,6 +166,7 @@ export default function TrafficDensityModule() {
           </tr> */}
         </tbody>
       </table>
+      </div>
     </section>
   );
 }

@@ -180,9 +180,9 @@ export default function TrafficEstimationModule() {
 
   return (
     <section style={outerSection}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <h2 style={{ marginTop: 0, marginBottom: 0 }}>{t.title}</h2>
-        <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: '8px' }}>
+        <h2 style={{ marginTop: 0, marginBottom: 0, fontSize: 'clamp(16px, 4vw, 20px)' }}>{t.title}</h2>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <input
             ref={fileInputRef}
             type="file"
@@ -559,20 +559,23 @@ function Field({ label, value, readOnly = false }) {
 const outerSection = {
   border: "1px solid #ddd",
   borderRadius: 8,
-  padding: 16,
-  margin: 16,
-  background: "#fafafa"
+  padding: '8px',
+  margin: '8px',
+  background: "#fafafa",
+  maxWidth: '100%',
+  overflowX: 'hidden'
 };
 
 const explanation = {
   fontSize: 12,
   color: "#555",
-  marginBottom: 12
+  marginBottom: 12,
+  lineHeight: 1.4
 };
 
 const twoColumn = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 360px), 1fr))",
   gap: 16
 };
 
@@ -647,7 +650,7 @@ const summaryLine = {
 
 const inputsGrid = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))",
   gap: 10,
   marginBottom: 4
 };
@@ -656,7 +659,9 @@ const table = {
   width: "100%",
   borderCollapse: "collapse",
   fontSize: 11,
-  marginTop: 8
+  marginTop: 8,
+  overflowX: 'auto',
+  display: 'block'
 };
 
 const th = {
@@ -705,7 +710,7 @@ const smokeMetaBox = {
 };
 
 const buttonStyle = {
-  padding: "6px 12px",
+  padding: "8px 12px",
   fontSize: 12,
   borderRadius: 4,
   border: "1px solid #ccc",
@@ -713,7 +718,9 @@ const buttonStyle = {
   cursor: "pointer",
   display: "flex",
   alignItems: "center",
-  gap: 4
+  gap: 4,
+  minHeight: '40px',
+  whiteSpace: 'nowrap'
 };
 
 // Localized vehicle label resolver
