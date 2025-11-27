@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.css": "/bumchang_comp_sys/static/css/main.e6c13ad2.css",
+    "main.js": "/bumchang_comp_sys/static/js/main.8e9a4d06.js",
+    "static/js/453.ecc4fd1b.chunk.js": "/bumchang_comp_sys/static/js/453.ecc4fd1b.chunk.js",
+    "index.html": "/bumchang_comp_sys/index.html",
+    "main.e6c13ad2.css.map": "/bumchang_comp_sys/static/css/main.e6c13ad2.css.map",
+    "main.8e9a4d06.js.map": "/bumchang_comp_sys/static/js/main.8e9a4d06.js.map",
+    "453.ecc4fd1b.chunk.js.map": "/bumchang_comp_sys/static/js/453.ecc4fd1b.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.e6c13ad2.css",
+    "static/js/main.8e9a4d06.js"
+  ]
+}
