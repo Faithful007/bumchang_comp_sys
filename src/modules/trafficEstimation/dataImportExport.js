@@ -65,20 +65,63 @@ export function exportToCSV(data, direction) {
     'Heavy Mix Pt (%)'
   ];
   
-  const rows = data.map(row => [
-    row.year,
-    direction,
-    row.passengerGasoline,
-    row.passengerDiesel,
-    row.busSmall,
-    row.busLarge,
-    row.truckSmall,
-    row.truckMedium,
-    row.truckLarge,
-    row.truckSpecial,
-    row.totalAadt || '',
-    row.heavyVehicleMixPt != null ? row.heavyVehicleMixPt.toFixed(2) : ''
-  ]);
+  const rows = data.map(row => {
+    // Derive Total AADT if missing
+    const totalAadt =
+      row.totalAadt != null
+        ? Number(row.totalAadt)
+        : [
+            row.passengerGasoline,
+            row.passengerDiesel,
+            row.busSmall,
+            row.busLarge,
+            row.truckSmall,
+            row.truckMedium,
+            row.truckLarge,
+            row.truckSpecial
+          ]
+            .map(v => Number(v) || 0)
+            .reduce((s, v) => s + v, 0);
+
+    // Derive Pt% if missing: F + H + I + J mix percentages
+    let pt = row.heavyVehicleMixPt;
+    if (pt == null) {
+      // If mixPercents available, use them directly
+      if (row.mixPercents) {
+        const mp = row.mixPercents;
+        pt = Number(
+          (
+            (mp.busLarge || 0) +
+            (mp.truckMedium || 0) +
+            (mp.truckLarge || 0) +
+            (mp.truckSpecial || 0)
+          ).toFixed(2)
+        );
+      } else if (totalAadt > 0) {
+        // Compute on the fly from counts
+        const f = Number(row.busLarge) || 0;
+        const h = Number(row.truckMedium) || 0;
+        const i = Number(row.truckLarge) || 0;
+        const j = Number(row.truckSpecial) || 0;
+        pt = Number((((f + h + i + j) / totalAadt) * 100).toFixed(2));
+      }
+    }
+
+    return [
+      row.year,
+      direction,
+      row.passengerGasoline,
+      row.passengerDiesel,
+      row.busSmall,
+      row.busLarge,
+      row.truckSmall,
+      row.truckMedium,
+      row.truckLarge,
+      row.truckSpecial,
+      totalAadt || '',
+      pt != null ? Number(pt).toFixed(2) : ''
+    ];
+  });
   
   const csvContent = [
     headers.join(','),
